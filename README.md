@@ -1,4 +1,4 @@
-# Gastro Pro — Panel de gestión
+# Gastro Pro — Panel de gestión 
 
 ## Setup en Supabase
 
