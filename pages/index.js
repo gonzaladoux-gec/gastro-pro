@@ -25,6 +25,7 @@ export default function Home() {
   const [modalProducto, setModalProducto] = useState(false)
   const [editProducto, setEditProducto] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [alertas, setAlertas] = useState([])
 
   const [fEntrega, setFEntrega] = useState({ fecha: '', hora: '09:00', productos: '', destinatario: 'DevRev — Recepción', valor: '', estado: 'entregado' })
   const [fProducto, setFProducto] = useState({ nombre: '', categoria: 'Lácteos', precio: '', precio_nuevo: '', stock: '', unidad: 'unidad' })
@@ -33,12 +34,14 @@ export default function Home() {
 
   const loadData = useCallback(async () => {
     setLoading(true)
-    const [{ data: e }, { data: p }] = await Promise.all([
+    const [{ data: e }, { data: p }, { data: a }] = await Promise.all([
       supabase.from('entregas').select('*').order('fecha', { ascending: false }),
-      supabase.from('productos').select('*').order('nombre')
+      supabase.from('productos').select('*').order('nombre'),
+      supabase.from('alertas_stock').select('*').order('created_at', { ascending: false })
     ])
     setEntregas(e || [])
     setProductos(p || [])
+    setAlertas(a || [])
     setLoading(false)
   }, [])
 
@@ -111,7 +114,6 @@ export default function Home() {
 
   const productosConAumento = productos.filter(p => p.precio_nuevo && p.precio_nuevo > p.precio)
   const stockBajo = productos.filter(p => p.stock !== null && p.stock < 5)
-
   const totalMes = entregasDelMes.reduce((s, e) => s + (e.valor || 0), 0)
 
   return (
@@ -141,7 +143,6 @@ export default function Home() {
           <div className="loading">Cargando datos...</div>
         ) : (
           <>
-            {/* ENTREGAS */}
             {tab === 'entregas' && (
               <div>
                 <div className="stats">
@@ -212,7 +213,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* PRODUCTOS */}
             {tab === 'productos' && (
               <div>
                 {productosConAumento.length > 0 && (
@@ -250,9 +250,24 @@ export default function Home() {
               </div>
             )}
 
-            {/* STOCK */}
             {tab === 'stock' && (
               <div>
+                {alertas.filter(a => !a.leida).length > 0 && (
+                  <div className="alert-banner" style={{ marginBottom: '1.25rem', background: '#FCEBEB', border: '1px solid #F5C4B3' }}>
+                    <span>🔔</span>
+                    <div>
+                      <strong>DevRev avisó stock bajo en {alertas.filter(a => !a.leida).length} producto{alertas.filter(a => !a.leida).length > 1 ? 's' : ''}:</strong>
+                      <ul style={{ margin: '6px 0 0 0', paddingLeft: 16, fontSize: 12 }}>
+                        {alertas.filter(a => !a.leida).map(a => (
+                          <li key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                            <span>{a.producto_nombre}</span>
+                            <button onClick={async () => { await supabase.from('alertas_stock').update({ leida: true }).eq('id', a.id); loadData() }} style={{ fontSize: 11, background: 'transparent', border: '1px solid #E5E2DA', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', color: '#7A7568', fontFamily: 'inherit' }}>Marcar como leída</button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
                 <div className="sec-header">
                   <h2 className="sec-title">Estado del stock</h2>
                 </div>
@@ -298,7 +313,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* AGENDA */}
             {tab === 'agenda' && (
               <div>
                 <div className="sec-header">
@@ -337,7 +351,6 @@ export default function Home() {
         )}
       </main>
 
-      {/* MODAL ENTREGA */}
       {modalEntrega && (
         <div className="overlay" onClick={e => e.target === e.currentTarget && setModalEntrega(false)}>
           <div className="modal">
@@ -381,7 +394,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* MODAL PRODUCTO */}
       {modalProducto && (
         <div className="overlay" onClick={e => e.target === e.currentTarget && setModalProducto(false)}>
           <div className="modal">
