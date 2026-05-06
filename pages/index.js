@@ -15,33 +15,50 @@ function Toast({ msg, onDone }) {
   return <div className="toast">{msg}</div>
 }
 
+function getPeriodoActual() {
+  const hoy = new Date()
+  const dia = hoy.getDate()
+  const mes = hoy.getMonth()
+  const anio = hoy.getFullYear()
+  if (dia <= 15) {
+    return { inicio: new Date(anio, mes, 1), fin: new Date(anio, mes, 15) }
+  } else {
+    return { inicio: new Date(anio, mes, 16), fin: new Date(anio, mes + 1, 0) }
+  }
+}
+
 export default function Home() {
   const [tab, setTab] = useState('entregas')
   const [entregas, setEntregas] = useState([])
   const [productos, setProductos] = useState([])
+  const [pagos, setPagos] = useState([])
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState(null)
   const [modalEntrega, setModalEntrega] = useState(false)
   const [modalProducto, setModalProducto] = useState(false)
+  const [modalPago, setModalPago] = useState(false)
   const [editProducto, setEditProducto] = useState(null)
   const [saving, setSaving] = useState(false)
   const [alertas, setAlertas] = useState([])
 
   const [fEntrega, setFEntrega] = useState({ fecha: '', hora: '09:00', productos: '', destinatario: 'DevRev — Recepción', valor: '', estado: 'entregado' })
   const [fProducto, setFProducto] = useState({ nombre: '', categoria: 'Lácteos', precio: '', precio_nuevo: '', stock: '', unidad: 'unidad' })
+  const [fPago, setFPago] = useState({ nota: '' })
 
   const showToast = (msg) => setToast(msg)
 
   const loadData = useCallback(async () => {
     setLoading(true)
-    const [{ data: e }, { data: p }, { data: a }] = await Promise.all([
+    const [{ data: e }, { data: p }, { data: a }, { data: pg }] = await Promise.all([
       supabase.from('entregas').select('*').order('fecha', { ascending: false }),
       supabase.from('productos').select('*').order('nombre'),
-      supabase.from('alertas_stock').select('*').order('created_at', { ascending: false })
+      supabase.from('alertas_stock').select('*').order('created_at', { ascending: false }),
+      supabase.from('pagos').select('*').order('created_at', { ascending: false })
     ])
     setEntregas(e || [])
     setProductos(p || [])
     setAlertas(a || [])
+    setPagos(pg || [])
     setLoading(false)
   }, [])
 
@@ -89,10 +106,34 @@ export default function Home() {
     loadData()
   }
 
+  async function eliminarProducto(id) {
+    if (!confirm('¿Eliminás este producto?')) return
+    await supabase.from('productos').delete().eq('id', id)
+    showToast('Producto eliminado')
+    loadData()
+  }
+
   async function eliminarEntrega(id) {
     if (!confirm('¿Eliminás esta entrega?')) return
     await supabase.from('entregas').delete().eq('id', id)
     showToast('Entrega eliminada')
+    loadData()
+  }
+
+  async function asentarPago() {
+    setSaving(true)
+    const periodo = getPeriodoActual()
+    const { error } = await supabase.from('pagos').insert([{
+      periodo_inicio: periodo.inicio.toISOString().split('T')[0],
+      periodo_fin: periodo.fin.toISOString().split('T')[0],
+      monto: totalAdeudado,
+      nota: fPago.nota
+    }])
+    setSaving(false)
+    if (error) return showToast('Error al asentar pago.')
+    showToast('Pago asentado correctamente')
+    setModalPago(false)
+    setFPago({ nota: '' })
     loadData()
   }
 
@@ -114,7 +155,21 @@ export default function Home() {
 
   const productosConAumento = productos.filter(p => p.precio_nuevo && p.precio_nuevo > p.precio)
   const stockBajo = productos.filter(p => p.stock !== null && p.stock < 5)
-  const totalMes = entregasDelMes.reduce((s, e) => s + (e.valor || 0), 0)
+
+  const totalMes = entregasDelMes
+    .filter(e => e.estado === 'entregado')
+    .reduce((s, e) => s + (e.valor || 0), 0)
+
+  const ultimoPago = pagos[0]
+  const entregasAdeudadas = entregas.filter(e => {
+    if (e.estado !== 'entregado') return false
+    if (!ultimoPago) return true
+    return new Date(e.fecha) > new Date(ultimoPago.created_at)
+  })
+  const totalAdeudado = entregasAdeudadas.reduce((s, e) => s + (e.valor || 0), 0)
+
+  const periodo = getPeriodoActual()
+  const periodoLabel = `${periodo.inicio.getDate()} al ${periodo.fin.getDate()} de ${MESES[periodo.inicio.getMonth()]}`
 
   return (
     <div className="app">
@@ -148,7 +203,7 @@ export default function Home() {
                 <div className="stats">
                   <div className="stat">
                     <div className="stat-label">Entregas este mes</div>
-                    <div className="stat-val">{entregasDelMes.length}</div>
+                    <div className="stat-val">{entregasDelMes.filter(e => e.estado === 'entregado').length}</div>
                     <div className="stat-sub">en {new Date().toLocaleString('es-AR', { month: 'long' })}</div>
                   </div>
                   <div className="stat">
@@ -159,18 +214,30 @@ export default function Home() {
                     <div className="stat-sub">{proximaEntrega ? `${proximaEntrega.hora} hs` : '—'}</div>
                   </div>
                   <div className="stat">
-                    <div className="stat-label">Total entregas</div>
-                    <div className="stat-val">{entregas.length}</div>
-                    <div className="stat-sub">historial completo</div>
-                  </div>
-                  <div className="stat">
-                    <div className="stat-label">Valor este mes</div>
+                    <div className="stat-label">Valor entregado</div>
                     <div className="stat-val" style={{ fontSize: 20, marginTop: 4 }}>
                       ${totalMes.toLocaleString('es-AR')}
                     </div>
-                    <div className="stat-sub up">acumulado</div>
+                    <div className="stat-sub up">solo entregado</div>
+                  </div>
+                  <div className="stat">
+                    <div className="stat-label">Adeudado DevRev</div>
+                    <div className="stat-val" style={{ fontSize: 20, marginTop: 4, color: totalAdeudado > 0 ? 'var(--danger)' : 'var(--accent)' }}>
+                      ${totalAdeudado.toLocaleString('es-AR')}
+                    </div>
+                    <div className="stat-sub">{periodoLabel}</div>
                   </div>
                 </div>
+
+                {totalAdeudado > 0 && (
+                  <div className="alert-banner" style={{ marginBottom: '1.25rem', background: '#FCEBEB', border: '1px solid #F5C4B3', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem' }}>
+                      <span>💰</span>
+                      <span>DevRev adeuda <strong>${totalAdeudado.toLocaleString('es-AR')}</strong> por el período {periodoLabel}</span>
+                    </div>
+                    <button className="btn btn-sm" onClick={() => setModalPago(true)}>Asentar pago</button>
+                  </div>
+                )}
 
                 <div className="sec-header">
                   <h2 className="sec-title">Historial de entregas</h2>
@@ -210,6 +277,29 @@ export default function Home() {
                     </table>
                   )}
                 </div>
+
+                {pagos.length > 0 && (
+                  <div style={{ marginTop: '1.5rem' }}>
+                    <h2 className="sec-title" style={{ marginBottom: '1rem' }}>Historial de pagos</h2>
+                    <div className="card">
+                      <table>
+                        <thead>
+                          <tr><th>Período</th><th>Monto</th><th>Nota</th><th>Fecha</th></tr>
+                        </thead>
+                        <tbody>
+                          {pagos.map(pg => (
+                            <tr key={pg.id}>
+                              <td>{formatFecha(pg.periodo_inicio)} → {formatFecha(pg.periodo_fin)}</td>
+                              <td>${(pg.monto || 0).toLocaleString('es-AR')}</td>
+                              <td>{pg.nota || '—'}</td>
+                              <td>{formatFecha(pg.created_at?.split('T')[0])}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -230,7 +320,7 @@ export default function Home() {
                 ) : (
                   <div className="product-grid">
                     {productos.map(p => (
-                      <div className="prod-card" key={p.id} onClick={() => abrirEditarProducto(p)} style={{ cursor: 'pointer' }}>
+                      <div className="prod-card" key={p.id}>
                         {p.precio_nuevo && p.precio_nuevo > p.precio && <div className="prod-alert" title="Próximo aumento"></div>}
                         <div className="prod-name">{p.nombre}</div>
                         <div className="prod-cat">{p.categoria}</div>
@@ -242,6 +332,10 @@ export default function Home() {
                             ? <><span className="badge badge-danger">Stock bajo</span><span style={{ fontSize: 11, color: 'var(--muted)' }}>Stock: {p.stock}</span></>
                             : <><span className="badge badge-green">Disponible</span><span style={{ fontSize: 11, color: 'var(--muted)' }}>Stock: {p.stock ?? '—'}</span></>
                           }
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                          <button className="btn-outline btn-sm" style={{ flex: 1 }} onClick={() => abrirEditarProducto(p)}>Editar</button>
+                          <button className="btn-cancel btn-sm" style={{ flex: 1, color: 'var(--danger)', borderColor: 'var(--danger)' }} onClick={() => eliminarProducto(p.id)}>Eliminar</button>
                         </div>
                       </div>
                     ))}
@@ -437,6 +531,28 @@ export default function Home() {
             <div className="modal-actions">
               <button className="btn-cancel" onClick={() => setModalProducto(false)}>Cancelar</button>
               <button className="btn" onClick={guardarProducto} disabled={saving}>{saving ? 'Guardando...' : editProducto ? 'Actualizar' : 'Guardar producto'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalPago && (
+        <div className="overlay" onClick={e => e.target === e.currentTarget && setModalPago(false)}>
+          <div className="modal">
+            <div className="modal-title">Asentar pago de DevRev</div>
+            <div style={{ background: '#F7F5F0', borderRadius: 8, padding: '1rem', marginBottom: '1rem', fontSize: 14 }}>
+              <div style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 4 }}>Período</div>
+              <div style={{ fontWeight: 500 }}>{periodoLabel}</div>
+              <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 8, marginBottom: 4 }}>Monto a asentar</div>
+              <div style={{ fontFamily: 'DM Serif Display, serif', fontSize: 24 }}>${totalAdeudado.toLocaleString('es-AR')}</div>
+            </div>
+            <div className="form-row">
+              <label className="form-label">Nota — opcional</label>
+              <input className="form-input" type="text" placeholder="Ej: Transferencia recibida" value={fPago.nota} onChange={e => setFPago({ nota: e.target.value })} />
+            </div>
+            <div className="modal-actions">
+              <button className="btn-cancel" onClick={() => setModalPago(false)}>Cancelar</button>
+              <button className="btn" onClick={asentarPago} disabled={saving}>{saving ? 'Guardando...' : 'Confirmar pago'}</button>
             </div>
           </div>
         </div>
