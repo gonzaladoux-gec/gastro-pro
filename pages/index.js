@@ -120,6 +120,13 @@ export default function Home() {
     loadData()
   }
 
+  async function eliminarPago(id) {
+    if (!confirm('¿Eliminás este pago?')) return
+    await supabase.from('pagos').delete().eq('id', id)
+    showToast('Pago eliminado')
+    loadData()
+  }
+
   async function asentarPago() {
     setSaving(true)
     const periodo = getPeriodoActual()
@@ -279,30 +286,25 @@ export default function Home() {
                 </div>
 
                 {pagos.length > 0 && (
-  <div style={{ marginTop: '1.5rem' }}>
-    <h2 className="sec-title" style={{ marginBottom: '1rem' }}>Historial de pagos</h2>
-    <div className="card">
-      <table>
-        <thead>
-          <tr><th>Período</th><th>Monto</th><th>Nota</th><th>Fecha</th><th></th></tr>
-        </thead>
-        <tbody>
-          {pagos.map(pg => (
-            <tr key={pg.id}>
-              <td>{formatFecha(pg.periodo_inicio)} → {formatFecha(pg.periodo_fin)}</td>
-              <td>${(pg.monto || 0).toLocaleString('es-AR')}</td>
-              <td>{pg.nota || '—'}</td>
-              <td>{formatFecha(pg.created_at?.split('T')[0])}</td>
-              <td>
-                <button className="btn-cancel" style={{ fontSize: 11, padding: '4px 10px' }} onClick={async () => { if (!confirm('¿Eliminás este pago?')) return; await supabase.from('pagos').delete().eq('id', pg.id); showToast('Pago eliminado'); loadData() }}>Eliminar</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  </div>
-)}
+                  <div style={{ marginTop: '1.5rem' }}>
+                    <h2 className="sec-title" style={{ marginBottom: '1rem' }}>Historial de pagos</h2>
+                    <div className="card">
+                      <table>
+                        <thead>
+                          <tr><th>Período</th><th>Monto</th><th>Nota</th><th>Fecha</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                          {pagos.map(pg => (
+                            <tr key={pg.id}>
+                              <td>{formatFecha(pg.periodo_inicio)} → {formatFecha(pg.periodo_fin)}</td>
+                              <td>${(pg.monto || 0).toLocaleString('es-AR')}</td>
+                              <td>{pg.nota || '—'}</td>
+                              <td>{formatFecha(pg.created_at?.split('T')[0])}</td>
+                              <td>
+                                <button className="btn-cancel" style={{ fontSize: 11, padding: '4px 10px' }} onClick={() => eliminarPago(pg.id)}>Eliminar</button>
+                              </td>
+                            </tr>
+                          ))}
                         </tbody>
                       </table>
                     </div>
