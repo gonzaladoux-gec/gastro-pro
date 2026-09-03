@@ -47,7 +47,9 @@ export default function Home() {
 
   const [fEntrega, setFEntrega] = useState({ fecha: '', hora: '09:00', productos: '', destinatario: 'DevRev - Recepcion', valor: '', estado: 'entregado' })
   const [fProducto, setFProducto] = useState({ nombre: '', categoria: 'Lacteos', precio: '', precio_nuevo: '', stock: '', unidad: 'unidad' })
-  const [fPago, setFPago] = useState({ nota: '' })
+  const [fPago, setFPago] = useState({ nota: '', montoPagado: '' })
+  const [fechaDesde, setFechaDesde] = useState('')
+  const [fechaHasta, setFechaHasta] = useState('')
 
   const showToast = (msg) => setToast(msg)
 
@@ -131,13 +133,13 @@ export default function Home() {
     const { error } = await supabase.from('pagos').insert([{
       periodo_inicio: periodo.inicio.toISOString().split('T')[0],
       periodo_fin: periodo.fin.toISOString().split('T')[0],
-      monto: totalAdeudado, nota: fPago.nota
+      monto: parseFloat(fPago.montoPagado) || totalAdeudado, nota: fPago.nota
     }])
     setSaving(false)
     if (error) return showToast('Error al asentar pago.')
     showToast('Pago asentado correctamente')
     setModalPago(false)
-    setFPago({ nota: '' })
+    setFPago({ nota: '', montoPagado: '' })
     loadData()
   }
 
@@ -174,8 +176,14 @@ export default function Home() {
   })
 
   const entregasFiltradas = entregas.filter(e => {
-    const d = new Date(e.fecha)
-    return d.getMonth() === mesFiltro && d.getFullYear() === anioFiltro && e.estado === 'entregado'
+    if (e.estado !== 'entregado') return false
+    const d = new Date(e.fecha + 'T12:00:00')
+    if (fechaDesde && fechaHasta) {
+      const desde = new Date(fechaDesde + 'T00:00:00')
+      const hasta = new Date(fechaHasta + 'T23:59:59')
+      return d >= desde && d <= hasta
+    }
+    return d.getMonth() === mesFiltro && d.getFullYear() === anioFiltro
   })
 
   const totalFiltrado = entregasFiltradas.reduce((s, e) => s + (e.valor || 0), 0)
@@ -269,13 +277,24 @@ export default function Home() {
 
                 <div style={{ background: 'white', border: '1px solid #E5E2DA', borderRadius: 12, padding: '1rem 1.25rem', marginBottom: '1.5rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-                    <div>
-                      <div style={{ fontSize: 11, color: '#7A7568', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>Resumen por mes</div>
-                      <select className="form-input" style={{ width: 'auto' }} value={`${mesFiltro}-${anioFiltro}`} onChange={e => { const [m, a] = e.target.value.split('-'); setMesFiltro(parseInt(m)); setAnioFiltro(parseInt(a)) }}>
-                        {mesesDisponibles.map(m => (
-                          <option key={`${m.mes}-${m.anio}`} value={`${m.mes}-${m.anio}`}>{m.label}</option>
-                        ))}
-                      </select>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
+                      <div>
+                        <div style={{ fontSize: 11, color: '#7A7568', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>Por mes</div>
+                        <select className="form-input" style={{ width: 'auto' }} value={`${mesFiltro}-${anioFiltro}`} onChange={e => { const [m, a] = e.target.value.split('-'); setMesFiltro(parseInt(m)); setAnioFiltro(parseInt(a)); setFechaDesde(''); setFechaHasta('') }}>
+                          {mesesDisponibles.map(m => (
+                            <option key={`${m.mes}-${m.anio}`} value={`${m.mes}-${m.anio}`}>{m.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, color: '#7A7568', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>O por rango de fechas</div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <input type="date" className="form-input" style={{ width: 'auto' }} value={fechaDesde} onChange={e => setFechaDesde(e.target.value)} />
+                          <span style={{ color: '#7A7568', fontSize: 13 }}>a</span>
+                          <input type="date" className="form-input" style={{ width: 'auto' }} value={fechaHasta} onChange={e => setFechaHasta(e.target.value)} />
+                          {(fechaDesde || fechaHasta) && <button className="btn-cancel" style={{ fontSize: 11, padding: '4px 10px' }} onClick={() => { setFechaDesde(''); setFechaHasta('') }}>Limpiar</button>}
+                        </div>
+                      </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontSize: 11, color: '#7A7568', marginBottom: 4 }}>{entregasFiltradas.length} entrega{entregasFiltradas.length !== 1 ? 's' : ''} entregadas</div>
@@ -531,10 +550,19 @@ export default function Home() {
             <div style={{ background: '#F7F5F0', borderRadius: 8, padding: '1rem', marginBottom: '1rem', fontSize: 14 }}>
               <div style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 4 }}>Periodo</div>
               <div style={{ fontWeight: 500 }}>{periodoLabel}</div>
-              <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 8, marginBottom: 4 }}>Monto a asentar</div>
+              <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 8, marginBottom: 4 }}>Total adeudado</div>
               <div style={{ fontFamily: 'DM Serif Display, serif', fontSize: 24 }}>${totalAdeudado.toLocaleString('es-AR')}</div>
             </div>
-            <div className="form-row"><label className="form-label">Nota - opcional</label><input className="form-input" type="text" placeholder="Ej: Transferencia recibida" value={fPago.nota} onChange={e => setFPago({ nota: e.target.value })} /></div>
+            <div className="form-row">
+              <label className="form-label">Monto pagado</label>
+              <input className="form-input" type="number" placeholder={totalAdeudado.toString()} value={fPago.montoPagado} onChange={e => setFPago({ ...fPago, montoPagado: e.target.value })} />
+              {fPago.montoPagado && parseFloat(fPago.montoPagado) < totalAdeudado && (
+                <div style={{ fontSize: 12, color: 'var(--danger)', marginTop: 6 }}>
+                  Queda pendiente: ${(totalAdeudado - parseFloat(fPago.montoPagado)).toLocaleString('es-AR')}
+                </div>
+              )}
+            </div>
+            <div className="form-row"><label className="form-label">Nota - opcional</label><input className="form-input" type="text" placeholder="Ej: Transferencia recibida" value={fPago.nota} onChange={e => setFPago({ ...fPago, nota: e.target.value })} /></div>
             <div className="modal-actions">
               <button className="btn-cancel" onClick={() => setModalPago(false)}>Cancelar</button>
               <button className="btn" onClick={asentarPago} disabled={saving}>{saving ? 'Guardando...' : 'Confirmar pago'}</button>
