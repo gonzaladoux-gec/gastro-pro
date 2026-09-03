@@ -23,6 +23,8 @@ export default function Cliente() {
   const [avisados, setAvisados] = useState({})
   const [mesFiltro, setMesFiltro] = useState(new Date().getMonth())
   const [anioFiltro, setAnioFiltro] = useState(new Date().getFullYear())
+  const [fechaDesde, setFechaDesde] = useState('')
+  const [fechaHasta, setFechaHasta] = useState('')
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -62,8 +64,14 @@ export default function Cliente() {
   const totalAdeudado = entregasAdeudadas.reduce((s, e) => s + (e.valor || 0), 0)
 
   const entregasFiltradas = entregas.filter(e => {
-    const d = new Date(e.fecha)
-    return d.getMonth() === mesFiltro && d.getFullYear() === anioFiltro && e.estado === 'entregado'
+    if (e.estado !== 'entregado') return false
+    const d = new Date(e.fecha + 'T12:00:00')
+    if (fechaDesde && fechaHasta) {
+      const desde = new Date(fechaDesde + 'T00:00:00')
+      const hasta = new Date(fechaHasta + 'T23:59:59')
+      return d >= desde && d <= hasta
+    }
+    return d.getMonth() === mesFiltro && d.getFullYear() === anioFiltro
   })
   const totalFiltrado = entregasFiltradas.reduce((s, e) => s + (e.valor || 0), 0)
 
@@ -159,11 +167,20 @@ export default function Cliente() {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
                     <div>
                       <div style={{ fontSize: 11, color: '#7A7568', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>Resumen por mes</div>
-                      <select style={{ padding: '8px 12px', border: '1px solid #E5E2DA', borderRadius: 8, fontSize: 14, fontFamily: "'DM Sans', sans-serif", background: '#F7F5F0', outline: 'none' }} value={`${mesFiltro}-${anioFiltro}`} onChange={e => { const [m, a] = e.target.value.split('-'); setMesFiltro(parseInt(m)); setAnioFiltro(parseInt(a)) }}>
+                      <select style={{ padding: '8px 12px', border: '1px solid #E5E2DA', borderRadius: 8, fontSize: 14, fontFamily: "'DM Sans', sans-serif", background: '#F7F5F0', outline: 'none' }} value={`${mesFiltro}-${anioFiltro}`} onChange={e => { const [m, a] = e.target.value.split('-'); setMesFiltro(parseInt(m)); setAnioFiltro(parseInt(a)); setFechaDesde(''); setFechaHasta('') }}>
                         {mesesDisponibles.map(m => (
                           <option key={`${m.mes}-${m.anio}`} value={`${m.mes}-${m.anio}`}>{m.label}</option>
                         ))}
                       </select>
+                      <div style={{ marginTop: 10 }}>
+                        <div style={{ fontSize: 11, color: '#7A7568', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>O por rango de fechas</div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <input type="date" style={{ padding: '8px 12px', border: '1px solid #E5E2DA', borderRadius: 8, fontSize: 13, fontFamily: "'DM Sans', sans-serif", background: '#F7F5F0', outline: 'none' }} value={fechaDesde} onChange={e => setFechaDesde(e.target.value)} />
+                          <span style={{ color: '#7A7568', fontSize: 13 }}>a</span>
+                          <input type="date" style={{ padding: '8px 12px', border: '1px solid #E5E2DA', borderRadius: 8, fontSize: 13, fontFamily: "'DM Sans', sans-serif", background: '#F7F5F0', outline: 'none' }} value={fechaHasta} onChange={e => setFechaHasta(e.target.value)} />
+                          {(fechaDesde || fechaHasta) && <button onClick={() => { setFechaDesde(''); setFechaHasta('') }} style={{ fontSize: 11, background: 'transparent', border: '1px solid #E5E2DA', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', color: '#7A7568', fontFamily: "'DM Sans', sans-serif" }}>Limpiar</button>}
+                        </div>
+                      </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontSize: 11, color: '#7A7568', marginBottom: 4 }}>{entregasFiltradas.length} entrega{entregasFiltradas.length !== 1 ? 's' : ''} entregadas</div>
@@ -172,6 +189,32 @@ export default function Cliente() {
                   </div>
                 </div>
 
+                {pagos.length > 0 && (
+                  <div style={{ background: 'white', border: '1px solid #E5E2DA', borderRadius: 12, overflow: 'hidden', marginBottom: '1.5rem' }}>
+                    <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid #E5E2DA' }}>
+                      <div style={{ fontFamily: "'DM Serif Display', serif", fontSize: 16 }}>Historial de pagos</div>
+                    </div>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                      <thead>
+                        <tr style={{ background: '#F7F5F0' }}>
+                          {['Fecha', 'Periodo', 'Monto pagado', 'Nota'].map(h => (
+                            <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 500, color: '#7A7568', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid #E5E2DA' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pagos.map((pg, i) => (
+                          <tr key={pg.id} style={{ borderBottom: i < pagos.length - 1 ? '1px solid #E5E2DA' : 'none' }}>
+                            <td style={{ padding: '12px 16px' }}>{formatFecha(pg.created_at?.split('T')[0])}</td>
+                            <td style={{ padding: '12px 16px' }}>{formatFecha(pg.periodo_inicio)} a {formatFecha(pg.periodo_fin)}</td>
+                            <td style={{ padding: '12px 16px', fontWeight: 500, color: '#2A6B4F' }}>${(pg.monto || 0).toLocaleString('es-AR')}</td>
+                            <td style={{ padding: '12px 16px', color: '#7A7568' }}>{pg.nota || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
                 <div style={{ fontFamily: "'DM Serif Display', serif", fontSize: 20, marginBottom: '1rem' }}>Historial de entregas</div>
                 <div style={{ background: 'white', border: '1px solid #E5E2DA', borderRadius: 12, overflow: 'hidden' }}>
                   {entregas.length === 0 ? (
