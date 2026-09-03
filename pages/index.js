@@ -170,7 +170,7 @@ export default function Home() {
   }
 
   const entregasDelMes = entregas.filter(e => {
-    const d = new Date(e.fecha)
+    const d = new Date(e.fecha + 'T12:00:00')
     const now = new Date()
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
   })
@@ -189,7 +189,7 @@ export default function Home() {
   const totalFiltrado = entregasFiltradas.reduce((s, e) => s + (e.valor || 0), 0)
 
   const proximaEntrega = entregas
-    .filter(e => e.estado === 'programada' && new Date(e.fecha) >= new Date())
+    .filter(e => e.estado === 'programada' && new Date(e.fecha + 'T12:00:00') >= new Date())
     .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))[0]
 
   const productosConAumento = productos.filter(p => p.precio_nuevo && p.precio_nuevo > p.precio)
@@ -201,7 +201,7 @@ export default function Home() {
   const entregasAdeudadas = entregas.filter(e => {
     if (e.estado !== 'entregado') return false
     if (!ultimoPago) return true
-    return new Date(e.fecha) > new Date(ultimoPago.created_at)
+    return new Date(e.fecha + 'T12:00:00') > new Date(ultimoPago.created_at)
   })
   const totalAdeudado = entregasAdeudadas.reduce((s, e) => s + (e.valor || 0), 0)
 
