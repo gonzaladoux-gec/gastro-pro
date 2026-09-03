@@ -198,12 +198,17 @@ export default function Home() {
   const totalMes = entregasDelMes.filter(e => e.estado === 'entregado').reduce((s, e) => s + (e.valor || 0), 0)
 
   const ultimoPago = pagos[0]
+  const totalPagado = pagos.reduce((s, pg) => s + (pg.monto || 0), 0)
+  const totalEntregadoHistorico = entregas.filter(e => e.estado === 'entregado').reduce((s, e) => s + (e.valor || 0), 0)
+  const saldoNeto = totalPagado - totalEntregadoHistorico
+  const saldoFavor = Math.max(0, saldoNeto)
   const entregasAdeudadas = entregas.filter(e => {
     if (e.estado !== 'entregado') return false
     if (!ultimoPago) return true
     return new Date(e.fecha + 'T12:00:00') > new Date(ultimoPago.created_at)
   })
-  const totalAdeudado = entregasAdeudadas.reduce((s, e) => s + (e.valor || 0), 0)
+  const totalEntregadoBruto = entregasAdeudadas.reduce((s, e) => s + (e.valor || 0), 0)
+  const totalAdeudado = Math.max(0, -saldoNeto)
 
   const periodo = getPeriodoActual()
   const periodoLabel = `${periodo.inicio.getDate()} al ${periodo.fin.getDate()} de ${MESES[periodo.inicio.getMonth()]}`
@@ -259,12 +264,18 @@ export default function Home() {
                     <div className="stat-sub up">solo entregado</div>
                   </div>
                   <div className="stat">
-                    <div className="stat-label">Adeudado DevRev</div>
-                    <div className="stat-val" style={{ fontSize: 20, marginTop: 4, color: totalAdeudado > 0 ? 'var(--danger)' : 'var(--accent)' }}>${totalAdeudado.toLocaleString('es-AR')}</div>
-                    <div className="stat-sub">{periodoLabel}</div>
+                    <div className="stat-label">{saldoFavor > 0 ? 'Saldo a favor DevRev' : 'Adeudado DevRev'}</div>
+                    <div className="stat-val" style={{ fontSize: 20, marginTop: 4, color: saldoFavor > 0 ? 'var(--accent)' : totalAdeudado > 0 ? 'var(--danger)' : 'var(--muted)' }}>${(saldoFavor > 0 ? saldoFavor : totalAdeudado).toLocaleString('es-AR')}</div>
+                    <div className="stat-sub">{saldoFavor > 0 ? 'se descuenta de proxima deuda' : periodoLabel}</div>
                   </div>
                 </div>
 
+                {saldoFavor > 0 && (
+                  <div className="alert-banner" style={{ marginBottom: '1.25rem', background: '#E1F5EE', border: '1px solid #A8DFC8' }}>
+                    <span>✅</span>
+                    <span>DevRev tiene <strong>${saldoFavor.toLocaleString('es-AR')}</strong> de saldo a favor — se descontara de la proxima deuda.</span>
+                  </div>
+                )}
                 {totalAdeudado > 0 && (
                   <div className="alert-banner" style={{ marginBottom: '1.25rem', background: '#FCEBEB', border: '1px solid #F5C4B3', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem' }}>
@@ -559,6 +570,11 @@ export default function Home() {
               {fPago.montoPagado && parseFloat(fPago.montoPagado) < totalAdeudado && (
                 <div style={{ fontSize: 12, color: 'var(--danger)', marginTop: 6 }}>
                   Queda pendiente: ${(totalAdeudado - parseFloat(fPago.montoPagado)).toLocaleString('es-AR')}
+                </div>
+              )}
+              {fPago.montoPagado && parseFloat(fPago.montoPagado) > totalAdeudado && (
+                <div style={{ fontSize: 12, color: 'var(--accent)', marginTop: 6 }}>
+                  Quedara saldo a favor: ${(parseFloat(fPago.montoPagado) - totalAdeudado).toLocaleString('es-AR')}
                 </div>
               )}
             </div>
