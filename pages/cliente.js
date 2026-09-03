@@ -142,6 +142,7 @@ export default function Cliente() {
                     <div style={{ fontFamily: "'DM Serif Display', serif", fontSize: 22, color: saldoFavor > 0 ? '#2A6B4F' : totalAdeudado > 0 ? '#A32D2D' : '#2A6B4F' }}>${(saldoFavor > 0 ? saldoFavor : totalAdeudado).toLocaleString('es-AR')}</div>
                     <div style={{ fontSize: 11, color: '#7A7568', marginTop: 4 }}>{saldoFavor > 0 ? 'se descuenta de tu proxima factura' : ultimoPago ? `desde ${formatFecha(ultimoPago.created_at?.split('T')[0])}` : 'acumulado'}</div>
                   </div>
+                    
                   <div style={{ background: 'white', border: '1px solid #E5E2DA', borderRadius: 12, padding: '1rem 1.25rem' }}>
                     <div style={{ fontSize: 11, color: '#7A7568', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>Total entregas</div>
                     <div style={{ fontFamily: "'DM Serif Display', serif", fontSize: 26 }}>{entregas.filter(e => e.estado === 'entregado').length}</div>
@@ -155,7 +156,7 @@ export default function Cliente() {
                     <span>Tenes <strong>${saldoFavor.toLocaleString('es-AR')}</strong> de saldo a favor. Se descontara de tu proxima facturacion.</span>
                   </div>
                 )}
-                {totalAdeudado > 0 && (
+                {totalAdeudado > 0 && saldoFavor === 0 && (
                   <div style={{ background: '#FCEBEB', border: '1px solid #F5C4B3', borderRadius: 10, padding: '.75rem 1rem', display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: '1.25rem', fontSize: 13 }}>
                     <span>💰</span>
                     <span>Tu saldo pendiente es <strong>${totalAdeudado.toLocaleString('es-AR')}</strong>. El pago se realiza contra entrega de manera quincenal.</span>
