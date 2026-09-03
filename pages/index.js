@@ -198,17 +198,15 @@ export default function Home() {
   const totalMes = entregasDelMes.filter(e => e.estado === 'entregado').reduce((s, e) => s + (e.valor || 0), 0)
 
   const ultimoPago = pagos[0]
-  const totalPagado = pagos.reduce((s, pg) => s + (pg.monto || 0), 0)
-  const totalEntregadoHistorico = entregas.filter(e => e.estado === 'entregado').reduce((s, e) => s + (e.valor || 0), 0)
-  const saldoNeto = totalPagado - totalEntregadoHistorico
-  const saldoFavor = Math.max(0, saldoNeto)
+  // saldoFavor: solo si el ultimo pago tuvo monto mayor a la deuda de ese momento
+  const saldoFavor = ultimoPago ? Math.max(0, (ultimoPago.monto || 0) - (ultimoPago.deuda_al_pagar || 0)) : 0
   const entregasAdeudadas = entregas.filter(e => {
     if (e.estado !== 'entregado') return false
     if (!ultimoPago) return true
     return new Date(e.fecha + 'T12:00:00') > new Date(ultimoPago.created_at)
   })
   const totalEntregadoBruto = entregasAdeudadas.reduce((s, e) => s + (e.valor || 0), 0)
-  const totalAdeudado = Math.max(0, -saldoNeto)
+  const totalAdeudado = Math.max(0, totalEntregadoBruto - saldoFavor)
 
   const periodo = getPeriodoActual()
   const periodoLabel = `${periodo.inicio.getDate()} al ${periodo.fin.getDate()} de ${MESES[periodo.inicio.getMonth()]}`
