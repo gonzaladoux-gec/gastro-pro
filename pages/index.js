@@ -133,7 +133,7 @@ export default function Home() {
     const { error } = await supabase.from('pagos').insert([{
       periodo_inicio: periodo.inicio.toISOString().split('T')[0],
       periodo_fin: periodo.fin.toISOString().split('T')[0],
-      monto: parseFloat(fPago.montoPagado) || totalAdeudado, nota: fPago.nota
+      monto: parseFloat(fPago.montoPagado) || totalAdeudado, nota: fPago.nota, deuda_al_pagar: totalAdeudado
     }])
     setSaving(false)
     if (error) return showToast('Error al asentar pago.')
@@ -267,6 +267,7 @@ export default function Home() {
                     <div className="stat-label">{saldoFavor > 0 ? 'Saldo a favor DevRev' : 'Adeudado DevRev'}</div>
                     <div className="stat-val" style={{ fontSize: 20, marginTop: 4, color: saldoFavor > 0 ? 'var(--accent)' : totalAdeudado > 0 ? 'var(--danger)' : 'var(--muted)' }}>${(saldoFavor > 0 ? saldoFavor : totalAdeudado).toLocaleString('es-AR')}</div>
                     <div className="stat-sub">{saldoFavor > 0 ? 'se descuenta de proxima deuda' : periodoLabel}</div>
+                    
                   </div>
                 </div>
 
@@ -276,7 +277,7 @@ export default function Home() {
                     <span>DevRev tiene <strong>${saldoFavor.toLocaleString('es-AR')}</strong> de saldo a favor — se descontara de la proxima deuda.</span>
                   </div>
                 )}
-                {totalAdeudado > 0 && (
+                {totalAdeudado > 0 && saldoFavor === 0 && (
                   <div className="alert-banner" style={{ marginBottom: '1.25rem', background: '#FCEBEB', border: '1px solid #F5C4B3', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem' }}>
                       <span>💰</span>
